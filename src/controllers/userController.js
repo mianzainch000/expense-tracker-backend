@@ -96,7 +96,7 @@ exports.login = async (req, res) => {
       token: token,
     });
   } catch (error) {
-    res.status(500).send({ message: "Internal Server Error." }); // ✅ 500 for server error
+    res.status(500).send({ message: "Internal Server Error." });
   }
 };
 
@@ -135,8 +135,8 @@ exports.forgotPassword = async (req, res) => {
 
     // Email content
     const html = ForgetPasswordEmail.email(
-      // "https://my-expense-tracker-frontend.vercel.app/auth/resetPassword",
-      "http://localhost:3000/auth/resetPassword",
+      "https://my-expense-tracker-frontend.vercel.app/auth/resetPassword",
+      // "http://localhost:3000/auth/resetPassword",
       tokenEmail
     );
     const emailOptions = {
