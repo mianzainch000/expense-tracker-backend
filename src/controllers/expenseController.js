@@ -143,56 +143,64 @@ exports.getExpense = async (req, res) => {
 exports.deleteExpense = async (req, res) => {
     try {
         const { id } = req.params;
+        const userId = req.user.userId;
 
-        // 1️⃣ Fetch the expense/income by ID
-        const expense = await Expense.findById(id);
+        // 1️⃣ Expense by ID check karo
+        const expense = await Expense.findOne({ _id: id, userId });
         if (!expense) {
-            // Agar expense na mile to 404 send karo
             return res.status(404).send({ message: "Expense not found" });
         }
 
-        // 2️⃣ Check if deleting an income that will cause negative balance
-        if (expense.type === "income") {
-            // Calculate total income
-            const totalIncomeAgg = await Expense.aggregate([
-                { $match: { type: "income" } },
-                { $group: { _id: null, sum: { $sum: "$amount" } } },
-            ]);
-            const totalIncome = totalIncomeAgg[0]?.sum || 0;
+        // 2️⃣ User ke sare expenses (except jo delete karna hai) load karo
+        const expenses = await Expense.find({
+            userId,
+            _id: { $ne: expense._id },
+        });
 
-            // Calculate remaining income after deletion
-            const remainingIncome = totalIncome - expense.amount;
+        let cashIncome = 0,
+            cashExpenses = 0;
+        let accountIncome = 0,
+            accountExpenses = 0;
 
-            // Calculate total expenses
-            const totalExpensesAgg = await Expense.aggregate([
-                { $match: { type: "expense" } },
-                { $group: { _id: null, sum: { $sum: "$amount" } } },
-            ]);
-            const totalExpenses = totalExpensesAgg[0]?.sum || 0;
+        expenses.forEach((exp) => {
+            const amt = Number(exp.amount) || 0;
+            const payType = exp.paymentType?.toLowerCase() || "account";
 
-            // Agar remaining income expenses se kam hai to delete na karne do
-            if (remainingIncome < totalExpenses) {
-                return res.status(400).send({
-                    message:
-                        "Cannot delete this income. Existing expenses are greater than remaining income after deletion.",
-                });
+            if (exp.type === "income") {
+                if (payType === "cash") cashIncome += amt;
+                else accountIncome += amt;
+            } else {
+                if (payType === "cash") cashExpenses += amt;
+                else accountExpenses += amt;
             }
+        });
+
+        // 3️⃣ Agar delete kar dete to new balances calculate karo
+        const cashBalance = cashIncome - cashExpenses;
+        const accountBalance = accountIncome - accountExpenses;
+
+        if (cashBalance < 0 || accountBalance < 0) {
+            return res.status(400).json({
+                message:
+                    "Cannot delete this transaction. Cash or Account balance would go negative.",
+                cashBalance,
+                accountBalance,
+            });
         }
 
-        // 3️⃣ Delete the document
-        await Expense.deleteOne({ _id: id, userId: req.user.userId });
+        // 4️⃣ Delete karo agar balance theek hai
+        await Expense.deleteOne({ _id: id, userId });
 
-        // 4️⃣ Send success response
         return res.status(200).send({
             message: "Transaction deleted successfully",
             expenseId: id,
         });
     } catch (error) {
-        console.error(error);
-        // Agar koi unexpected error aaye to 500 response
+        console.error("Delete Expense Error:", error);
         return res.status(500).send({ message: "Internal Server Error." });
     }
 };
+
 
 const mongoose = require("mongoose");
 
