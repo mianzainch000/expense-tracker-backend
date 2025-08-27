@@ -9,12 +9,57 @@ exports.createExpense = async (req, res) => {
         return res.status(400).json({ errors: errorMsg });
     }
     const user = req.user;
-
-    // req.any name but wihi name auth middleware mai ho
-
     const { date, description, amount, paymentType, type } = req.body;
 
     try {
+        // 🔹 Pahle user ke sare expenses nikalo
+        const expenses = await Expense.find({ userId: user.userId });
+
+        let cashIncome = 0,
+            cashExpenses = 0;
+        let accountIncome = 0,
+            accountExpenses = 0;
+
+        expenses.forEach((exp) => {
+            const amt = Number(exp.amount) || 0;
+            const payType = exp.paymentType?.toLowerCase() || "account";
+
+            if (exp.type === "income") {
+                if (payType === "cash") cashIncome += amt;
+                else accountIncome += amt;
+            } else {
+                if (payType === "cash") cashExpenses += amt;
+                else accountExpenses += amt;
+            }
+        });
+
+        // 🔹 New expense add karne ke baad balance calculate karo
+        let newCashIncome = cashIncome;
+        let newCashExpenses = cashExpenses;
+        let newAccountIncome = accountIncome;
+        let newAccountExpenses = accountExpenses;
+
+        if (type === "income") {
+            if (paymentType === "cash") newCashIncome += Number(amount);
+            else newAccountIncome += Number(amount);
+        } else {
+            if (paymentType === "cash") newCashExpenses += Number(amount);
+            else newAccountExpenses += Number(amount);
+        }
+
+        const cashBalance = newCashIncome - newCashExpenses;
+        const accountBalance = newAccountIncome - newAccountExpenses;
+
+        if (cashBalance < 0 || accountBalance < 0) {
+            return res.status(400).json({
+                message:
+                    "Transaction not allowed. Cash or Account balance cannot go negative.",
+                cashBalance,
+                accountBalance,
+            });
+        }
+
+        // 🔹 Save karo agar balance negative nahi
         let newExpense = new Expense({
             date,
             description,
@@ -22,23 +67,20 @@ exports.createExpense = async (req, res) => {
             paymentType,
             type,
             userId: user.userId,
-            // userId key get in models as a reference
         });
 
         let result = await newExpense.save();
-        if (result) {
-            return res
-                .status(201)
-                .send({ message: "Transcation added successfully", expense: result });
-        } else {
-            return res.status(500).send({ message: "Some thing wrong" });
-        }
+        return res.status(201).send({
+            message: "Transaction added successfully",
+            expense: result,
+        });
     } catch (error) {
         console.error("Error saving product:", error);
-        return res.status(500).send({ message: "Something went wrong, please try again." });
+        return res
+            .status(500)
+            .send({ message: "Something went wrong, please try again." });
     }
 };
-
 
 exports.getExpense = async (req, res) => {
     try {
@@ -157,17 +199,19 @@ const mongoose = require("mongoose");
 exports.updateExpense = async (req, res) => {
     try {
         const { id } = req.params;
-
-        // 1️⃣ Old expense
         const userObjectId = new mongoose.Types.ObjectId(req.user.userId);
+
+        // 🔹 Old expense
         const oldExpense = await Expense.findOne({ _id: id, userId: userObjectId });
         if (!oldExpense) {
             return res.status(404).json({ message: "Expense not found" });
         }
 
-        // 2️⃣ Updated data (type/amount normalize)
         const updatedType = (req.body.type ?? oldExpense.type).toLowerCase();
         const updatedAmount = Number(req.body.amount ?? oldExpense.amount);
+        const updatedPaymentType = (
+            req.body.paymentType ?? oldExpense.paymentType
+        ).toLowerCase();
 
         if (!["income", "expense"].includes(updatedType)) {
             return res.status(400).json({ message: "Invalid type" });
@@ -178,52 +222,60 @@ exports.updateExpense = async (req, res) => {
                 .json({ message: "Amount must be a positive number" });
         }
 
-        // 3️⃣ Totals from DB (excluding oldExpense) ➜ userId cast is IMPORTANT
-        const [incomeAgg] = await Expense.aggregate([
-            {
-                $match: {
-                    type: "income",
-                    userId: userObjectId,
-                    _id: { $ne: oldExpense._id },
-                },
-            },
-            { $group: { _id: null, sum: { $sum: "$amount" } } },
-        ]);
+        // 🔹 All user expenses (except oldExpense)
+        const expenses = await Expense.find({
+            userId: userObjectId,
+            _id: { $ne: oldExpense._id },
+        });
 
-        const [expenseAgg] = await Expense.aggregate([
-            {
-                $match: {
-                    type: "expense",
-                    userId: userObjectId,
-                    _id: { $ne: oldExpense._id },
-                },
-            },
-            { $group: { _id: null, sum: { $sum: "$amount" } } },
-        ]);
+        let cashIncome = 0,
+            cashExpenses = 0;
+        let accountIncome = 0,
+            accountExpenses = 0;
 
-        let totalIncome = Number(incomeAgg?.sum || 0);
-        let totalExpenses = Number(expenseAgg?.sum || 0);
+        expenses.forEach((exp) => {
+            const amt = Number(exp.amount) || 0;
+            const payType = exp.paymentType?.toLowerCase() || "account";
 
-        // 4️⃣ Add updated doc into totals
+            if (exp.type === "income") {
+                if (payType === "cash") cashIncome += amt;
+                else accountIncome += amt;
+            } else {
+                if (payType === "cash") cashExpenses += amt;
+                else accountExpenses += amt;
+            }
+        });
+
+        // 🔹 Updated transaction apply karo
         if (updatedType === "income") {
-            totalIncome += updatedAmount;
+            if (updatedPaymentType === "cash") cashIncome += updatedAmount;
+            else accountIncome += updatedAmount;
         } else {
-            totalExpenses += updatedAmount;
+            if (updatedPaymentType === "cash") cashExpenses += updatedAmount;
+            else accountExpenses += updatedAmount;
         }
 
-        // 5️⃣ Balance check
-        if (totalExpenses > totalIncome) {
+        const cashBalance = cashIncome - cashExpenses;
+        const accountBalance = accountIncome - accountExpenses;
+
+        if (cashBalance < 0 || accountBalance < 0) {
             return res.status(400).json({
-                message: "Update not allowed. Expenses cannot exceed total income.",
-                currentIncome: totalIncome,
-                currentExpenses: totalExpenses,
+                message:
+                    "Update not allowed. Cash or Account balance cannot go negative.",
+                cashBalance,
+                accountBalance,
             });
         }
 
-        // 6️⃣ Update
+        // 🔹 Update if valid
         const updatedExpense = await Expense.findOneAndUpdate(
             { _id: id, userId: userObjectId },
-            { ...req.body, type: updatedType, amount: updatedAmount },
+            {
+                ...req.body,
+                type: updatedType,
+                amount: updatedAmount,
+                paymentType: updatedPaymentType,
+            },
             { new: true, runValidators: true }
         );
 
@@ -233,10 +285,9 @@ exports.updateExpense = async (req, res) => {
         });
     } catch (error) {
         console.error("Update Expense Error:", error);
-        return res.status(500).json({
-            message: "Internal Server Error",
-            error: error.message,
-        });
+        return res
+            .status(500)
+            .json({ message: "Internal Server Error", error: error.message });
     }
 };
 
