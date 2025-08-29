@@ -100,6 +100,48 @@ exports.login = async (req, res) => {
   }
 };
 
+exports.googleLogin = async (req, res) => {
+  try {
+    const { email, firstName, lastName, googleId } = req.body;
+
+    // 1️⃣ Check if user already exists
+    let user = await User.findOne({ email });
+
+    // 2️⃣ If not, create a new user WITHOUT password
+    if (!user) {
+      user = new User({
+        email,
+        firstName,
+        lastName,
+        googleId: googleId || "google_temp_id", // temporary id if frontend doesn't send it
+      });
+      await user.save();
+    }
+
+    // 3️⃣ Generate JWT token
+    const token = generateToken(
+      { userId: user._id },
+      process.env.SECRET_KEY,
+      "2d"
+    );
+
+    // 4️⃣ Send response
+    return res.status(200).send({
+      message: "Login successful",
+      user,
+      token,
+    });
+  } catch (error) {
+    console.error("Google Login Error:", error);
+    return res
+      .status(500)
+      .send({ message: "Something went wrong, please try again." });
+  }
+};
+
+
+
+
 exports.forgotPassword = async (req, res) => {
   const errors = validationResult(req);
 
@@ -278,5 +320,7 @@ exports.validate = (method) => {
           ),
       ];
     }
+
+
   }
 };

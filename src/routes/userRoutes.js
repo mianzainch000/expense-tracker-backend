@@ -23,4 +23,11 @@ router.post(
     userController.validate("resetPassword"),
     userController.resetPassword
 );
+
+
+router.post(
+    "/googleLogin",
+
+    userController.googleLogin
+);
 module.exports = router;
