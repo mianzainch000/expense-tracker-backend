@@ -139,9 +139,6 @@ exports.googleLogin = async (req, res) => {
   }
 };
 
-
-
-
 exports.forgotPassword = async (req, res) => {
   const errors = validationResult(req);
 
@@ -320,7 +317,5 @@ exports.validate = (method) => {
           ),
       ];
     }
-
-
   }
 };

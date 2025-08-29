@@ -7,10 +7,7 @@ router.post(
     userController.validate("signup"),
     userController.signup
 );
-router.post(
-    "/login",
-    userController.validate("login"),
-    userController.login);
+router.post("/login", userController.validate("login"), userController.login);
 
 router.post(
     "/forgotPassword",
@@ -24,10 +21,5 @@ router.post(
     userController.resetPassword
 );
 
-
-router.post(
-    "/googleLogin",
-
-    userController.googleLogin
-);
+router.post("/googleLogin", userController.googleLogin);
 module.exports = router;
