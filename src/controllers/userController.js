@@ -118,11 +118,13 @@ exports.googleLogin = async (req, res) => {
       await user.save();
     }
 
+    const expiresInGoogle = process.env.JWT_EXPIRATION_Google;
+
     // 3️⃣ Generate JWT token
     const token = generateToken(
       { userId: user._id },
       process.env.SECRET_KEY,
-      "2d"
+      expiresInGoogle
     );
 
     // 4️⃣ Send response
