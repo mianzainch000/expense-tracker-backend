@@ -191,6 +191,7 @@ exports.resetPassword = async (req, res) => {
     let errorMsg = errors.array()[0].msg;
     return res.status(400).json({ errors: errorMsg });
   }
+
   try {
     const { email, otp, newPassword } = req.body;
 
@@ -198,18 +199,18 @@ exports.resetPassword = async (req, res) => {
     const user = await User.findOne({ email });
     if (!user) return res.status(404).send({ message: "User not found" });
 
-    // Verify OTP
+    // Verify OTP expiry
     if (user.otpExpiry < Date.now()) {
       return res
         .status(400)
         .send({ message: "OTP has expired. Please request a new one." });
     }
 
-    // Check if OTP matches
+    // Check if OTP matches AND email matches
     if (user.otp !== otp) {
       return res
         .status(400)
-        .send({ message: "Invalid OTP. Please try again." });
+        .send({ message: "Invalid OTP for this email. Please try again." });
     }
 
     // Hash new password
