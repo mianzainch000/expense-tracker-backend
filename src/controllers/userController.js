@@ -156,8 +156,9 @@ exports.forgotPassword = async (req, res) => {
 
     // Generate OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiryMinutes = process.env.OTP_EXPIRE_MINUTES;
     user.otp = otp;
-    user.otpExpiry = Date.now() + 2 * 60 * 1000;  //  OTP Expire Time
+    user.otpExpiry = Date.now() + expiryMinutes * 60 * 1000;
     await user.save();
 
     const transporter = nodemailer.createTransport({
@@ -199,12 +200,16 @@ exports.resetPassword = async (req, res) => {
 
     // Verify OTP
     if (user.otpExpiry < Date.now()) {
-      return res.status(400).send({ message: "OTP has expired. Please request a new one." });
+      return res
+        .status(400)
+        .send({ message: "OTP has expired. Please request a new one." });
     }
 
     // Check if OTP matches
     if (user.otp !== otp) {
-      return res.status(400).send({ message: "Invalid OTP. Please try again." });
+      return res
+        .status(400)
+        .send({ message: "Invalid OTP. Please try again." });
     }
 
     // Hash new password
