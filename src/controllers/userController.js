@@ -1,7 +1,7 @@
 require("dotenv").config();
 const User = require("../models/userSchema");
 const nodemailer = require("nodemailer");
-const ForgetPasswordEmail = require("../emailTemplate");
+const { otpEmail } = require("../emailTemplate");
 const { check, validationResult } = require("express-validator");
 const {
   verifyToken,
@@ -142,21 +142,24 @@ exports.googleLogin = async (req, res) => {
 };
 
 exports.forgotPassword = async (req, res) => {
+  const errors = validationResult(req);
+
+  if (!errors.isEmpty()) {
+    let errorMsg = errors.array()[0].msg;
+    return res.status(400).json({ errors: errorMsg });
+  }
   try {
     const { email } = req.body;
 
     const user = await User.findOne({ email });
     if (!user) return res.status(404).send({ message: "User not found." });
 
-    // Generate 6 digit OTP
+    // Generate OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-
-    // Save OTP in DB with 5 min expiry
     user.otp = otp;
-    user.otpExpiry = Date.now() + 5 * 60 * 1000;
+    user.otpExpiry = Date.now() + 2 * 60 * 1000;  //  OTP Expire Time
     await user.save();
 
-    // Send OTP via email
     const transporter = nodemailer.createTransport({
       service: "gmail",
       secure: true,
@@ -170,7 +173,7 @@ exports.forgotPassword = async (req, res) => {
       from: process.env.OWNER_EMAIL,
       to: email,
       subject: "Your OTP for Password Reset",
-      text: `Your OTP is ${otp}. It will expire in 5 minutes.`,
+      html: otpEmail(otp), // 👈 ye template use ho raha hai
     });
 
     return res.status(200).send({ message: "OTP sent to your email" });
@@ -181,6 +184,12 @@ exports.forgotPassword = async (req, res) => {
 };
 
 exports.resetPassword = async (req, res) => {
+  const errors = validationResult(req);
+
+  if (!errors.isEmpty()) {
+    let errorMsg = errors.array()[0].msg;
+    return res.status(400).json({ errors: errorMsg });
+  }
   try {
     const { email, otp, newPassword } = req.body;
 
@@ -189,8 +198,13 @@ exports.resetPassword = async (req, res) => {
     if (!user) return res.status(404).send({ message: "User not found" });
 
     // Verify OTP
-    if (user.otp !== otp || user.otpExpiry < Date.now()) {
-      return res.status(400).send({ message: "Invalid or expired OTP" });
+    if (user.otpExpiry < Date.now()) {
+      return res.status(400).send({ message: "OTP has expired. Please request a new one." });
+    }
+
+    // Check if OTP matches
+    if (user.otp !== otp) {
+      return res.status(400).send({ message: "Invalid OTP. Please try again." });
     }
 
     // Hash new password

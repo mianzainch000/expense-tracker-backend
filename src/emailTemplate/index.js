@@ -1,30 +1,45 @@
 module.exports = {
-    email: (baseurl, jwt) =>
-        ` <html>
+    otpEmail: (otp) => `
+  <html>
     <head>
-        <title>Reset Your Password</title>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+      <title>Your OTP Code</title>
     </head>
-    <body style="margin: 0; padding: 0; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); border-radius: 16px; background-color: whitesmoke;">
-        <div  style="width: 80%; padding: 20px; background-color: #ffffff;">
-            <div  style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border: 1px solid #dddddd; padding: 20px;">
-                <div  style="text-align: center; margin-bottom: 20px;">
-                   
-                </div>
-                <div  style="font-size: 24px; margin-bottom: 20px;">
-                    Reset Your Password
-                </div>
-                <div  style="font-size: 20px; line-height: 1.5; margin-bottom: 20px;">
-                    Hello,<br><br>
-                    We received a request to reset your password. Click the button below to reset it.
-                </div>
-                <a href=${baseurl}?token=${jwt} style="display: block; width: 200px; margin: 0 auto; padding: 10px 0; background-color: #007BFF; color: #ffffff; text-align: center; text-decoration: none; border-radius: 5px;">Reset Password</a>
-                <div style="font-size: 16px; margin-top: 10px; text-align: center;">
-                 <div style="font-size: 16px; margin-top: 10px; text-align: center;">
-                </div>
-                </div>
-            </div>
+    <body style="margin:0; padding:0; font-family: Arial, sans-serif; background-color:#f4f4f4;">
+      <div style="max-width:600px; margin:40px auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 4px 12px rgba(0,0,0,0.1);">
+        
+        <!-- Header -->
+        <div style="background:#007bff; padding:20px; text-align:center; color:#fff;">
+          <h1 style="margin:0; font-size:24px;">OTP Verification</h1>
         </div>
+
+        <!-- Body -->
+        <div style="padding:30px; text-align:center;">
+          <p style="font-size:18px; color:#333; margin-bottom:15px;">
+            Hello,<br/> Use the OTP below to reset your password.
+          </p>
+
+          <!-- OTP Box -->
+          <div style="font-size:28px; font-weight:bold; letter-spacing:8px; background:#f1f1f1; padding:15px; border-radius:8px; display:inline-block; margin:20px 0;">
+            ${otp}
+          </div>
+
+          <p style="font-size:16px; color:#555; margin-bottom:20px;">
+            This OTP will expire in <strong>30 minutes</strong>.
+          </p>
+
+          <p style="font-size:14px; color:#777; line-height:1.5;">
+            If you did not request this, you can safely ignore this email.
+          </p>
+        </div>
+
+        <!-- Footer -->
+        <div style="background:#f9f9f9; padding:15px; text-align:center; font-size:12px; color:#999;">
+          &copy; ${new Date().getFullYear()} Your Company. All rights reserved.
+        </div>
+      </div>
     </body>
-    </html>
-      `,
+  </html>
+  `,
 };
