@@ -11,6 +11,8 @@ const userSchema = new mongoose.Schema({
     },
   },
   googleId: { type: String }, // optional, Google login
+  otp: String, // temporary OTP
+  otpExpiry: Date, // OTP expiration time
 });
 
 module.exports = mongoose.model("User", userSchema);

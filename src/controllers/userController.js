@@ -142,29 +142,21 @@ exports.googleLogin = async (req, res) => {
 };
 
 exports.forgotPassword = async (req, res) => {
-  const errors = validationResult(req);
-
-  if (!errors.isEmpty()) {
-    let errorMsg = errors.array()[0].msg;
-    return res.status(400).json({ errors: errorMsg });
-  }
   try {
     const { email } = req.body;
 
-    // Check if the user exists
     const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(404).send({ message: "User not found." });
-    }
+    if (!user) return res.status(404).send({ message: "User not found." });
 
-    // Generate JWT token using helper function
-    const tokenEmail = generateToken(
-      { email },
-      process.env.SECRET_KEY,
-      process.env.JWT_EXPIRATION_EMAIL
-    );
+    // Generate 6 digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // Prepare email transporter
+    // Save OTP in DB with 5 min expiry
+    user.otp = otp;
+    user.otpExpiry = Date.now() + 5 * 60 * 1000;
+    await user.save();
+
+    // Send OTP via email
     const transporter = nodemailer.createTransport({
       service: "gmail",
       secure: true,
@@ -174,77 +166,46 @@ exports.forgotPassword = async (req, res) => {
       },
     });
 
-    // Email content
-    const html = ForgetPasswordEmail.email(
-      "https://my-expense-tracker-frontend.vercel.app/auth/resetPassword",
-      // "http://localhost:3000/auth/resetPassword",
-      tokenEmail
-    );
-    const emailOptions = {
+    await transporter.sendMail({
       from: process.env.OWNER_EMAIL,
       to: email,
-      subject: "Here's your password reset link!",
-      text: "click on Button to Reset ",
-      html: html,
-    };
+      subject: "Your OTP for Password Reset",
+      text: `Your OTP is ${otp}. It will expire in 5 minutes.`,
+    });
 
-    // Send the email
-    await transporter.sendMail(emailOptions);
-
-    return res
-      .status(200)
-      .send({ message: "Password reset email sent successfully." });
+    return res.status(200).send({ message: "OTP sent to your email" });
   } catch (error) {
-    return res.status(500).send({ message: "Internal server error." });
+    console.error("ForgotPasswordOTP Error:", error);
+    return res.status(500).send({ message: "Internal Server Error" });
   }
 };
 
 exports.resetPassword = async (req, res) => {
-  const errors = validationResult(req);
-
-  if (!errors.isEmpty()) {
-    let errorMsg = errors.array()[0].msg;
-    return res.status(400).json({ errors: errorMsg });
-  }
   try {
-    const { tokenEmail: token } = req.params;
-    const { newPassword } = req.body;
-
-    // Validate inputs
-    if (!token || !newPassword) {
-      return res
-        .status(400)
-        .send({ message: "Token and new password are required" });
-    }
-
-    // Verify the token using the helper function
-    let decoded;
-    try {
-      decoded = verifyToken(token, process.env.SECRET_KEY);
-    } catch (err) {
-      return res.status(401).send({ message: err.message });
-    }
-
-    // Extract email from the token
-    const { email } = decoded;
+    const { email, otp, newPassword } = req.body;
 
     // Find user by email
     const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(404).send({ message: "User not found" });
+    if (!user) return res.status(404).send({ message: "User not found" });
+
+    // Verify OTP
+    if (user.otp !== otp || user.otpExpiry < Date.now()) {
+      return res.status(400).send({ message: "Invalid or expired OTP" });
     }
 
-    // Hash the new password using helper function
+    // Hash new password
     const hashedPassword = await generateHashPassword(newPassword);
 
-    // Update the user's password
+    // Update password & clear OTP
     user.password = hashedPassword;
+    user.otp = undefined;
+    user.otpExpiry = undefined;
     await user.save();
 
-    res.status(200).send({ message: "Password reset successful" });
+    return res.status(200).send({ message: "Password reset successful" });
   } catch (error) {
-    console.error("Error in ResetPassword:", error.message);
-    res.status(500).send({ message: "Internal server error" });
+    console.error("ResetPasswordWithOTP Error:", error);
+    return res.status(500).send({ message: "Internal Server Error" });
   }
 };
 
@@ -306,6 +267,12 @@ exports.validate = (method) => {
 
     case "resetPassword": {
       return [
+        check("email")
+          .notEmpty()
+          .withMessage("Email is required")
+          .isEmail()
+          .withMessage("Please enter a valid email address"),
+        check("otp").notEmpty().withMessage("OTP is required"),
         check("newPassword")
           .notEmpty()
           .withMessage("Password is required")

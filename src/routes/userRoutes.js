@@ -16,7 +16,7 @@ router.post(
 );
 
 router.post(
-    "/resetPassword/:tokenEmail",
+    "/resetPassword",
     userController.validate("resetPassword"),
     userController.resetPassword
 );
