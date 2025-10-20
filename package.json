@@ -1,0 +1,20 @@
+{
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "reset-git": "powershell -Command \"Remove-Item -Recurse -Force .git; git init; git add .; git commit -m 'Initial commit'; git remote add origin https://github.com/mianzainch000/expense-tracker-backend.git; git push -u origin master --force\""
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.1",
+    "express-validator": "^7.2.1",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.8.3",
+    "nodemailer": "^6.9.16",
+    "nodemon": "^3.1.7",
+    "serverless-http": "^3.2.0",
+    "vercel": "^39.4.2"
+  }
+}
